@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 99%;
+    --foreground: 224 14% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 14% 12%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 224 14% 12%;
+
+    --accent: 224 14% 12%;
+    --accent-foreground: 0 0% 99%;
+
+    --primary: 224 14% 12%;
+    --primary-foreground: 0 0% 99%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 99%;
+
+    --radius: 0.5rem;
+  }
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html,
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+.react-flow__attribution {
+  display: none !important;
+}
+
+.react-flow__edge-text {
+  font-size: 11px;
+}
