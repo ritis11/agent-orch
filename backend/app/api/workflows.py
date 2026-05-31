@@ -34,7 +34,18 @@ class WorkflowRunRequest(BaseModel):
     input: str = ""
 
 
-def _validate_workflow_graph(session: Session, graph: dict[str, Any] | None) -> None:
+def _validate_workflow_graph(
+    session: Session,
+    graph: dict[str, Any] | None,
+    strict: bool = False,
+) -> None:
+    """Validate a workflow graph.
+
+    `strict=False` (the default, used on create/update) only checks data
+    integrity so partially-built drafts can be saved. `strict=True` (used when
+    a workflow is run) additionally enforces connectivity so we never execute
+    a disconnected graph.
+    """
     if not graph:
         return
     agent_ids = {
@@ -47,7 +58,7 @@ def _validate_workflow_graph(session: Session, graph: dict[str, Any] | None) -> 
         rows = session.exec(select(Agent).where(Agent.id.in_(agent_ids))).all()
         agents = {a.id: a for a in rows if a.id is not None}
     try:
-        validate_graph(graph, agents)
+        validate_graph(graph, agents, strict=strict)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -138,7 +149,7 @@ def run_workflow(
     wf = session.get(Workflow, workflow_id)
     if not wf:
         raise HTTPException(status_code=404, detail="workflow not found")
-    _validate_workflow_graph(session, wf.graph)
+    _validate_workflow_graph(session, wf.graph, strict=True)
 
     run = Run(
         workflow_id=workflow_id,

@@ -23,7 +23,8 @@ the current state — so the only names available are state keys like `label`,
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, TypedDict
+import operator
+from typing import Annotated, Any, Callable, TypedDict
 
 from asteval import Interpreter
 from langgraph.graph import END, START, StateGraph
@@ -40,13 +41,27 @@ def _edge_endpoints(edge: dict[str, Any]) -> tuple[str | None, str | None]:
     return source, target
 
 
+def _take_latest(_old: Any, new: Any) -> Any:
+    """Reducer for scalar keys written by parallel branches.
+
+    On fan-in (multiple predecessors finishing in the same super-step) LangGraph
+    applies the reducer pairwise. We keep the most recent non-None write. The
+    order among truly-concurrent branches is arbitrary, which is fine: downstream
+    agents read the full accumulated `messages` list for context, not this scalar.
+    """
+    return new if new is not None else _old
+
+
 class GraphState(TypedDict, total=False):
-    messages: list
+    # `messages` accumulates one entry per agent across the whole run. The
+    # operator.add reducer lets parallel branches append concurrently — so each
+    # node MUST return only its *new* messages, never the full list.
+    messages: Annotated[list, operator.add]
     context: dict
-    label: str | None
+    label: Annotated[str | None, _take_latest]
     input: str
-    output: str | None
-    last_agent: str | None
+    output: Annotated[str | None, _take_latest]
+    last_agent: Annotated[str | None, _take_latest]
 
 
 def _safe_eval(expr: str, state: dict[str, Any]) -> bool:
@@ -77,8 +92,8 @@ def _make_agent_fn(agent: Agent, run_id: int) -> Callable[[dict[str, Any]], dict
 def _make_start_fn() -> Callable[[dict[str, Any]], dict[str, Any]]:
     def _fn(state: dict[str, Any]) -> dict[str, Any]:
         # Pass-through: just ensures `input` is present and seeds context.
+        # Do NOT return `messages` — the add-reducer would duplicate it.
         return {
-            "messages": state.get("messages") or [],
             "context": state.get("context") or {},
             "input": state.get("input") or "",
         }
@@ -95,18 +110,25 @@ def _make_end_fn() -> Callable[[dict[str, Any]], dict[str, Any]]:
     return _fn
 
 
-def validate_graph(graph_json: dict[str, Any], agents_by_id: dict[int, Agent]) -> None:
-    """Raise ValueError if the graph is malformed."""
+def validate_graph(
+    graph_json: dict[str, Any],
+    agents_by_id: dict[int, Agent],
+    strict: bool = True,
+) -> None:
+    """Raise ValueError if the graph is malformed.
+
+    Two levels of validation:
+
+    * Always (data integrity): node ids are unique and every edge references
+      nodes that actually exist. These run on save so we never persist a
+      structurally corrupt graph.
+    * `strict=True` (run-time completeness): exactly one start, at least one
+      end, start has an outgoing edge, end has an incoming edge, agent nodes
+      are connected and reference a real agent. These would reject an
+      in-progress draft, so they only run when the workflow is executed.
+    """
     nodes = graph_json.get("nodes") or []
     edges = graph_json.get("edges") or []
-    if not nodes:
-        raise ValueError("graph has no nodes")
-
-    types = [n.get("type") for n in nodes]
-    if types.count("start") != 1:
-        raise ValueError("graph must have exactly one start node")
-    if types.count("end") < 1:
-        raise ValueError("graph must have at least one end node")
 
     ids = {n.get("id") for n in nodes}
     if len(ids) != len(nodes):
@@ -118,6 +140,18 @@ def validate_graph(graph_json: dict[str, Any], agents_by_id: dict[int, Agent]) -
             raise ValueError(f"edge source '{src}' not in nodes")
         if tgt not in ids:
             raise ValueError(f"edge target '{tgt}' not in nodes")
+
+    if not strict:
+        return
+
+    if not nodes:
+        raise ValueError("graph has no nodes")
+
+    types = [n.get("type") for n in nodes]
+    if types.count("start") != 1:
+        raise ValueError("graph must have exactly one start node")
+    if types.count("end") < 1:
+        raise ValueError("graph must have at least one end node")
 
     # Orphan agent nodes (no incoming or outgoing) are not allowed.
     sources = {_edge_endpoints(e)[0] for e in edges}

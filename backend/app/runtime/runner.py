@@ -96,6 +96,8 @@ async def execute_run(run_id: int) -> None:
         return
 
     output = (result or {}).get("output") or ""
+    slack_channel: str | None = None
+    run_trigger: str | None = None
     with session_scope() as session:
         run = session.get(Run, run_id)
         if run is not None:
@@ -104,8 +106,40 @@ async def execute_run(run_id: int) -> None:
             run.finished_at = datetime.utcnow()
             session.add(run)
             session.commit()
+            run_trigger = run.trigger
+            workflow = session.get(Workflow, run.workflow_id)
+            if workflow and workflow.slack_channel:
+                slack_channel = workflow.slack_channel.strip()
     _publish_status(run_id, "completed")
+
+    # Auto-deliver the result to the workflow's bound Slack channel. We skip
+    # slack-triggered runs because the Slack handler already replies in-thread,
+    # and skip the `*` wildcard which only means "match any inbound channel".
+    if slack_channel and slack_channel != "*" and run_trigger != "slack" and output:
+        await _notify_slack(run_id, slack_channel, output)
+
     bus.publish(run_id, "done", {"ok": True})
+
+
+async def _notify_slack(run_id: int, channel: str, text: str) -> None:
+    """Post a run's final output to Slack, logging success/failure to the run."""
+    from ..channels.slack import get_slack_client
+    from .agent_node import _persist_log
+
+    client = get_slack_client()
+    if client is None:
+        return
+    try:
+        # chat_postMessage is a blocking HTTP call; keep it off the event loop.
+        await asyncio.to_thread(client.chat_postMessage, channel=channel, text=text)
+        with session_scope() as session:
+            _persist_log(session, run_id, "slack", f"posted result to {channel}")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("slack auto-post to %s failed: %s", channel, exc)
+        with session_scope() as session:
+            _persist_log(
+                session, run_id, "slack", f"slack post failed: {exc}", level="error"
+            )
 
 
 _main_loop: asyncio.AbstractEventLoop | None = None

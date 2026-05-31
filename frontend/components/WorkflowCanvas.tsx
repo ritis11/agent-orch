@@ -4,7 +4,9 @@ import * as React from "react";
 import ReactFlow, {
   Background,
   Controls,
+  Handle,
   MiniMap,
+  Position,
   addEdge,
   useNodesState,
   useEdgesState,
@@ -38,6 +40,9 @@ type WorkflowCanvasProps = {
 
 const NODE_WIDTH = 200;
 
+// Shared handle styling so the connection dots are visible and easy to grab.
+const HANDLE_CLASS = "!h-3 !w-3 !bg-foreground !border-2 !border-card";
+
 function StartNode({ selected }: NodeProps<CanvasNodeData>) {
   return (
     <div
@@ -48,6 +53,11 @@ function StartNode({ selected }: NodeProps<CanvasNodeData>) {
     >
       <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
       <span className="text-sm font-medium">Start</span>
+      <Handle
+        type="source"
+        position={Position.Right}
+        className={HANDLE_CLASS}
+      />
     </div>
   );
 }
@@ -60,6 +70,7 @@ function EndNode({ selected }: NodeProps<CanvasNodeData>) {
         selected ? "ring-2 ring-foreground" : "border-border",
       )}
     >
+      <Handle type="target" position={Position.Left} className={HANDLE_CLASS} />
       <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
       <span className="text-sm font-medium">End</span>
     </div>
@@ -74,6 +85,7 @@ function AgentNode({ data, selected }: NodeProps<CanvasNodeData>) {
         selected ? "ring-2 ring-foreground border-foreground" : "border-border",
       )}
     >
+      <Handle type="target" position={Position.Left} className={HANDLE_CLASS} />
       <div className="px-3 py-2 border-b border-border flex items-center gap-2">
         <span className="h-2 w-2 rounded-full bg-indigo-500" />
         <span className="text-sm font-medium truncate">
@@ -83,6 +95,11 @@ function AgentNode({ data, selected }: NodeProps<CanvasNodeData>) {
       <div className="px-3 py-2 text-xs text-muted-foreground">
         {data.agent?.role || "(unassigned)"}
       </div>
+      <Handle
+        type="source"
+        position={Position.Right}
+        className={HANDLE_CLASS}
+      />
     </div>
   );
 }

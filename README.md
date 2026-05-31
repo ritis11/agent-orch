@@ -59,7 +59,7 @@ flowchart LR
 
 ```bash
 cp .env.example .env
-# Edit .env: set GEMINI_API_KEY, TAVILY_API_KEY, and (optionally) Slack tokens
+# Edit .env: set GEMINI_API_KEY, TAVILY_API_KEY, and Slack tokens
 
 docker compose up --build
 open http://localhost:3000

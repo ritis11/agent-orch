@@ -178,14 +178,23 @@ def run_agent(agent: Agent, state: dict[str, Any], run_id: int) -> dict[str, Any
 
         memory = _load_memory(session, agent.id or 0, run_id, agent.memory_window)
         system = SystemMessage(content=agent.system_prompt or f"You are {agent.name}.")
-        user_input = state.get("input") or ""
-        prior_output = state.get("output")
-        # Feed previous node output as additional context for downstream agents.
-        if prior_output and prior_output != user_input:
+        user_request = state.get("input") or ""
+        # Thread every upstream agent's output into this agent. Reading the
+        # accumulated `messages` list (rather than a single `output` scalar)
+        # means fan-in nodes see ALL predecessor branches, not just one.
+        prior_outputs = [
+            f"{(m.get('agent') or 'agent')}: {m.get('content', '')}".strip()
+            for m in (state.get("messages") or [])
+            if isinstance(m, dict) and m.get("content")
+        ]
+        if prior_outputs:
+            joined = "\n\n".join(prior_outputs)
             user_input = (
-                f"User request:\n{state.get('input', '')}\n\n"
-                f"Previous agent output:\n{prior_output}"
+                f"User request:\n{user_request}\n\n"
+                f"Outputs from previous agents:\n{joined}"
             )
+        else:
+            user_input = user_request
         messages: list[Any] = [system, *memory, HumanMessage(content=user_input)]
 
         total_in = total_out = 0
@@ -264,8 +273,10 @@ def run_agent(agent: Agent, state: dict[str, Any], run_id: int) -> dict[str, Any
             f"agent '{agent.name}' done (in={total_in}, out={total_out})",
         )
 
+    # Return ONLY the new message — the GraphState `messages` reducer
+    # (operator.add) appends it, so returning the full list here would duplicate.
     update: dict[str, Any] = {
-        "messages": (state.get("messages") or []) + [{"role": "agent", "agent": agent.name, "content": final_text}],
+        "messages": [{"role": "agent", "agent": agent.name, "content": final_text}],
         "output": final_text,
         "last_agent": agent.name,
     }

@@ -60,10 +60,10 @@ export function AgentForm({
     initial?.max_tokens ?? DEFAULTS.max_tokens,
   );
   const [blockedTopics, setBlockedTopics] = React.useState<string>(
-    initial?.guardrails.blocked_topics.join(", ") ?? "",
+    initial?.guardrails?.blocked_topics?.join(", ") ?? "",
   );
   const [maxSteps, setMaxSteps] = React.useState<number>(
-    initial?.guardrails.max_steps ?? DEFAULTS.guardrails.max_steps,
+    initial?.guardrails?.max_steps ?? DEFAULTS.guardrails.max_steps,
   );
   const [scheduleCron, setScheduleCron] = React.useState<string>(
     initial?.schedule_cron ?? "",
