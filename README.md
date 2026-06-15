@@ -1,4 +1,4 @@
-# Yuno — AI Agent Orchestration Platform
+# AI Agent Orchestration Platform
 
 Local-first platform for building, running, and monitoring multi-agent workflows. Design graphs visually in the browser, execute them with LangGraph + Gemini, trigger runs from the UI or Slack, and watch live logs stream over SSE.
 
@@ -85,11 +85,11 @@ Backend seeds two workflow templates on first boot: **Research & Reply** and **S
 
 ```yaml
 display_information:
-  name: Yuno Agent Bot
-  description: Triggers Yuno workflows from Slack
+  name:  Agent Bot
+  description: Triggers workflows from Slack
 features:
   bot_user:
-    display_name: Yuno
+    display_name: AgentOrcha
     always_online: true
 oauth_config:
   scopes:
@@ -186,7 +186,7 @@ Add a module under `backend/app/channels/` (see `slack.py`):
 ## Project structure
 
 ```
-yuno/
+AgentOrcha/
 ├── docker-compose.yml
 ├── .env.example
 ├── README.md
